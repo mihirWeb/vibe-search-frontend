@@ -7,10 +7,11 @@ import SearchResults from '@/components/SearchResults';
 import FilterPanel from '@/components/FilterPanel';
 import ChatInterface from '@/components/ChatInterface';
 import PostsGallery from '@/components/PostGallery';
+import InstagramGallery from '@/components/InstagramGallery';
 import { useSearch } from '@/hooks/useSearch';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'store' | 'vibe-search' | 'posts'>('store');
+  const [activeTab, setActiveTab] = useState<'store' | 'vibe-search' | 'posts' | 'instagram'>('store');
   const { results, isLoading, search, currentPage, totalPages, totalItems } = useSearch();
   const [showFilters, setShowFilters] = useState(false);
   const [currentFilters, setCurrentFilters] = useState<any>({});
@@ -124,6 +125,9 @@ export default function Home() {
 
       {/* Posts Tab */}
       {activeTab === 'posts' && <PostsGallery />}
+
+      {/* Instagram Tab */}
+      {activeTab === 'instagram' && <InstagramGallery />}
 
       {/* Footer - Only show on store tab */}
       {activeTab === 'store' && (

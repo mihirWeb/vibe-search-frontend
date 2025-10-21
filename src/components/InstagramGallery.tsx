@@ -1,23 +1,31 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import ProductDetail from './ProductDetail';
+import InstagramPostDetail from './InstagramPostDetail';
+import ScrapeInstagramModal from './ScrapeInstagramModal';
 
-interface ProductPost {
-    id: number;
-    image_url: string;
-    name: string;
-    brand?: string;
-    category?: string;
+interface InstagramPost {
+    id: string;
+    type: string;
+    url: string;
+    display_url: string;
+    caption?: string;
+    likes_count: number;
+    comments_count: number;
+    timestamp: string;
+    owner_username: string;
+    owner_full_name: string;
+    scraped_date: string;
 }
 
-const PostsGallery: React.FC = () => {
-    const [posts, setPosts] = useState<ProductPost[]>([]);
+const InstagramGallery: React.FC = () => {
+    const [posts, setPosts] = useState<InstagramPost[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [hasMore, setHasMore] = useState(true);
-    const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+    const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+    const [showScrapeModal, setShowScrapeModal] = useState(false);
 
     useEffect(() => {
         loadPosts(1);
@@ -32,39 +40,29 @@ const PostsGallery: React.FC = () => {
         try {
             setLoading(true);
             
-            const response = await fetch('http://127.0.0.1:8000/api/v1/products/list', {
+            const response = await fetch('http://127.0.0.1:8000/api/v1/instagram/list', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     page: page,
                     page_size: 50,
-                    sort_by: 'created_at',
+                    sort_by: 'scraped_date',
                     sort_order: 'desc'
                 })
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to fetch products: ${response.statusText}`);
+                throw new Error(`Failed to fetch Instagram posts: ${response.statusText}`);
             }
 
             const data = await response.json();
             
-            console.log('[Posts Gallery] Loaded products:', data);
-            
-            const formattedPosts = data.products
-                .filter((product: any) => product.image_url)
-                .map((product: any) => ({
-                    id: product.id,
-                    image_url: product.image_url,
-                    name: product.name,
-                    brand: product.brand,
-                    category: product.category
-                }));
+            console.log('[Instagram Gallery] Loaded posts:', data);
             
             if (page === 1) {
-                setPosts(formattedPosts);
+                setPosts(data.posts);
             } else {
-                setPosts(prev => [...prev, ...formattedPosts]);
+                setPosts(prev => [...prev, ...data.posts]);
             }
             
             setCurrentPage(data.pagination.current_page);
@@ -72,7 +70,7 @@ const PostsGallery: React.FC = () => {
             setHasMore(data.pagination.has_next);
             
         } catch (error) {
-            console.error('Failed to load posts:', error);
+            console.error('Failed to load Instagram posts:', error);
         } finally {
             setLoading(false);
         }
@@ -84,12 +82,17 @@ const PostsGallery: React.FC = () => {
         }
     };
 
-    const handlePostClick = (productId: number) => {
-        setSelectedProductId(productId);
+    const handlePostClick = (postId: string) => {
+        setSelectedPostId(postId);
     };
 
     const handleCloseDetail = () => {
-        setSelectedProductId(null);
+        setSelectedPostId(null);
+    };
+
+    const handleScrapeSuccess = () => {
+        // Reload posts after scraping
+        loadPosts(1);
     };
 
     if (loading && posts.length === 0) {
@@ -97,7 +100,7 @@ const PostsGallery: React.FC = () => {
             <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-                    <p className="text-gray-600 mt-4">Loading posts...</p>
+                    <p className="text-gray-600 mt-4">Loading Instagram posts...</p>
                 </div>
             </div>
         );
@@ -107,18 +110,29 @@ const PostsGallery: React.FC = () => {
         <>
             <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 py-8">
                 <div className="container mx-auto px-4">
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Fashion Gallery</h2>
-                        <p className="text-gray-600">
-                            Showing {posts.length} products {totalPages > 1 && `(Page ${currentPage} of ${totalPages})`}
-                        </p>
+                    {/* Header with Scrape Button */}
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="text-center flex-1">
+                            <h2 className="text-3xl font-bold text-gray-900 mb-2">Instagram Posts</h2>
+                            <p className="text-gray-600">
+                                Showing {posts.length} posts {totalPages > 1 && `(Page ${currentPage} of ${totalPages})`}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setShowScrapeModal(true)}
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Scrape Instagram
+                        </button>
                     </div>
 
                     {/* Masonry Grid - Pinterest Style */}
                     <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4 space-y-4">
                         {posts.map((post) => {
-                            const proxyImageUrl = getImageProxyUrl(post.image_url);
+                            const proxyImageUrl = getImageProxyUrl(post.display_url);
                             
                             return (
                                 <div
@@ -130,13 +144,12 @@ const PostsGallery: React.FC = () => {
                                         {proxyImageUrl ? (
                                             <img
                                                 src={proxyImageUrl}
-                                                alt={post.name || 'Product'}
+                                                alt={post.caption || 'Instagram post'}
                                                 className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-300"
                                                 loading="lazy"
                                                 onError={(e) => {
                                                     const target = e.target as HTMLImageElement;
                                                     target.style.display = 'none';
-                                                    console.error('Failed to load image:', post.image_url);
                                                 }}
                                             />
                                         ) : (
@@ -149,15 +162,29 @@ const PostsGallery: React.FC = () => {
                                         
                                         {/* Hover Overlay */}
                                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-end p-4">
-                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity w-full">
                                                 <p className="text-white text-sm font-medium line-clamp-2">
-                                                    {post.name}
+                                                    @{post.owner_username}
                                                 </p>
-                                                {post.brand && (
-                                                    <p className="text-white text-xs mt-1">
-                                                        {post.brand}
+                                                {post.caption && (
+                                                    <p className="text-white text-xs mt-1 line-clamp-2">
+                                                        {post.caption}
                                                     </p>
                                                 )}
+                                                <div className="flex items-center gap-4 mt-2 text-white text-xs">
+                                                    <span className="flex items-center gap-1">
+                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                                                        </svg>
+                                                        {post.likes_count.toLocaleString()}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                        </svg>
+                                                        {post.comments_count.toLocaleString()}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -165,19 +192,6 @@ const PostsGallery: React.FC = () => {
                                         <div className="absolute top-3 left-3 bg-purple-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                                             Click to view details
                                         </div>
-
-                                        {/* Heart Icon */}
-                                        <button 
-                                            className="absolute top-3 right-3 bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-gray-100"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                console.log('[Posts Gallery] Liked product:', post.id);
-                                            }}
-                                        >
-                                            <svg className="w-5 h-5 text-gray-700 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                            </svg>
-                                        </button>
                                     </div>
                                 </div>
                             );
@@ -217,21 +231,35 @@ const PostsGallery: React.FC = () => {
                             <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            <p className="text-gray-500 text-lg">No products found</p>
+                            <p className="text-gray-500 text-lg mb-4">No Instagram posts found</p>
+                            <button
+                                onClick={() => setShowScrapeModal(true)}
+                                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                            >
+                                Scrape Your First Post
+                            </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Product Detail Modal */}
-            {selectedProductId && (
-                <ProductDetail
-                    productId={selectedProductId}
+            {/* Instagram Post Detail Modal */}
+            {selectedPostId && (
+                <InstagramPostDetail
+                    postId={selectedPostId}
                     onClose={handleCloseDetail}
+                />
+            )}
+
+            {/* Scrape Instagram Modal */}
+            {showScrapeModal && (
+                <ScrapeInstagramModal
+                    onClose={() => setShowScrapeModal(false)}
+                    onSuccess={handleScrapeSuccess}
                 />
             )}
         </>
     );
 };
 
-export default PostsGallery;
+export default InstagramGallery;
