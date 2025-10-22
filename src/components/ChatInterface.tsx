@@ -355,7 +355,7 @@ const ChatInterface: React.FC = () => {
                                 />
                                 <div className="flex-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Add optional text description (recommended):
+                                        Add optional text description (optional):
                                     </label>
                                     <input
                                         type="text"
