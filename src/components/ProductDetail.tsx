@@ -35,6 +35,25 @@ interface ProductDetailProps {
     onClose: () => void;
 }
 
+interface SimilarStoreItem {
+    item: {
+        id: number;
+        sku_id: string;
+        title: string;
+        brand_name?: string;
+        category?: string;
+        sub_category?: string;
+        product_type?: string;
+        featured_image?: string;
+        lowest_price?: number;
+        pdp_url?: string;
+        description?: string;
+        colorways?: string;
+        gender?: string;
+    };
+    similarity_score: number;
+}
+
 const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => {
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
@@ -45,6 +64,9 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
     const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [similarItems, setSimilarItems] = useState<SimilarStoreItem[]>([]);
+    const [loadingSimilar, setLoadingSimilar] = useState(false);
+    const [similarItemsError, setSimilarItemsError] = useState<string | null>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +101,52 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
         }
     };
 
+    const fetchSimilarItems = async (productItemId: number) => {
+        try {
+            setLoadingSimilar(true);
+            setSimilarItemsError(null);
+            console.log('[Product Detail] Fetching similar items for product item:', productItemId);
+
+            const response = await fetch('http://127.0.0.1:8000/api/v1/store-items/similar-items', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_item_id: productItemId,
+                    limit: 10,
+                    similarity_threshold: 0.6
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.detail || `Failed to fetch similar items: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log('[Product Detail] Similar items response:', data);
+
+            if (data.success) {
+                setSimilarItems(data.similar_items || []);
+            } else {
+                throw new Error(data.message || 'Failed to fetch similar items');
+            }
+
+        } catch (err) {
+            console.error('[Product Detail] Error fetching similar items:', err);
+            setSimilarItemsError(err instanceof Error ? err.message : 'Failed to fetch similar items');
+            setSimilarItems([]);
+        } finally {
+            setLoadingSimilar(false);
+        }
+    };
+
+    const handleItemClick = (item: ProductItem) => {
+        setSelectedItem(item);
+        setSimilarItems([]); // Clear previous results
+        setSimilarItemsError(null);
+        fetchSimilarItems(item.id);
+    };
+
     const handleDelete = async () => {
         try {
             setIsDeleting(true);
@@ -94,13 +162,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
             const data = await response.json();
             console.log('[Product Detail] Product deleted:', data);
             
-            // Show success message
             alert('Product deleted successfully!');
-            
-            // Close the detail view
             onClose();
-            
-            // Reload the page to refresh the product list
             window.location.reload();
 
         } catch (err) {
@@ -150,17 +213,14 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
 
         const [x1, y1, x2, y2] = bbox;
 
-        // Validate bounding box
         if (x2 <= x1 || y2 <= y1) {
             console.warn('[Product Detail] Invalid bounding box dimensions:', bbox);
             return null;
         }
 
-        // Calculate scale factors between natural image size and displayed size
         const scaleX = imageDimensions.width / imageDimensions.naturalWidth;
         const scaleY = imageDimensions.height / imageDimensions.naturalHeight;
 
-        // Convert pixel coordinates from natural size to display size
         const displayX1 = x1 * scaleX;
         const displayY1 = y1 * scaleY;
         const displayWidth = (x2 - x1) * scaleX;
@@ -367,7 +427,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
                                                         }}
                                                         onMouseEnter={() => setHoveredItem(index)}
                                                         onMouseLeave={() => setHoveredItem(null)}
-                                                        onClick={() => setSelectedItem(item)}
+                                                        onClick={() => handleItemClick(item)}
                                                     >
                                                         {/* Item Number Badge */}
                                                         <div
@@ -420,7 +480,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
                                                     }`}
                                                     onMouseEnter={() => setHoveredItem(index)}
                                                     onMouseLeave={() => setHoveredItem(null)}
-                                                    onClick={() => setSelectedItem(item)}
+                                                    onClick={() => handleItemClick(item)}
                                                 >
                                                     <div
                                                         className="w-6 h-6 rounded-full border-2 flex items-center justify-center font-bold text-white flex-shrink-0"
@@ -547,7 +607,11 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
                                             Item Details
                                         </h4>
                                         <button
-                                            onClick={() => setSelectedItem(null)}
+                                            onClick={() => {
+                                                setSelectedItem(null);
+                                                setSimilarItems([]);
+                                                setSimilarItemsError(null);
+                                            }}
                                             className="text-gray-400 hover:text-gray-600"
                                         >
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -624,6 +688,106 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
                                                 </div>
                                                 <p className="text-xs text-gray-600 mt-1">
                                                     {(selectedItem.confidence_score * 100).toFixed(1)}%
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Similar Store Items Section */}
+                                    <div className="mt-6 pt-6 border-t border-gray-200">
+                                        <h5 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                                            </svg>
+                                            Similar Items Available
+                                        </h5>
+
+                                        {loadingSimilar ? (
+                                            <div className="text-center py-8">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                                                <p className="text-xs text-gray-500 mt-2">Finding similar items...</p>
+                                            </div>
+                                        ) : similarItemsError ? (
+                                            <div className="text-center py-8">
+                                                <svg className="w-12 h-12 text-red-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <p className="text-xs text-red-600 px-4">
+                                                    {similarItemsError}
+                                                </p>
+                                            </div>
+                                        ) : similarItems.length > 0 ? (
+                                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                                {similarItems.map((similarItem, index) => (
+                                                    <a
+                                                        key={index}
+                                                        href={similarItem.item.pdp_url || '#'}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="block bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors hover:shadow-md"
+                                                    >
+                                                        <div className="flex gap-3">
+                                                            {/* Image */}
+                                                            {similarItem.item.featured_image ? (
+                                                                <img
+                                                                    src={similarItem.item.featured_image}
+                                                                    alt={similarItem.item.title}
+                                                                    className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                                                    onError={(e) => {
+                                                                        const target = e.target as HTMLImageElement;
+                                                                        target.style.display = 'none';
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                                                                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                                    </svg>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Details */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                                                    {similarItem.item.title}
+                                                                </p>
+                                                                {similarItem.item.brand_name && (
+                                                                    <p className="text-xs text-gray-600 mt-1">
+                                                                        {similarItem.item.brand_name}
+                                                                    </p>
+                                                                )}
+                                                                <div className="flex items-center justify-between mt-2">
+                                                                    {similarItem.item.lowest_price && (
+                                                                        <p className="text-sm font-bold text-purple-600">
+                                                                            ${similarItem.item.lowest_price}
+                                                                        </p>
+                                                                    )}
+                                                                    <div className="flex items-center gap-1">
+                                                                        <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                                        </svg>
+                                                                        <span className="text-xs text-gray-500">
+                                                                            {Math.round(similarItem.similarity_score * 100)}% match
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Arrow Icon */}
+                                                            <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                            </svg>
+                                                        </div>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <svg className="w-12 h-12 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <p className="text-xs text-gray-500">
+                                                    No similar items found
                                                 </p>
                                             </div>
                                         )}
