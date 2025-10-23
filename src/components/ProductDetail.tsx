@@ -79,7 +79,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
             setLoading(true);
             setError(null);
 
-            const response = await fetch(`http://127.0.0.1:8000/api/v1/products/${productId}`);
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}`);
 
             if (!response.ok) {
                 throw new Error(`Failed to fetch product: ${response.statusText}`);
@@ -107,7 +107,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
             setSimilarItemsError(null);
             console.log('[Product Detail] Fetching similar items for product item:', productItemId);
 
-            const response = await fetch('http://127.0.0.1:8000/api/v1/store-items/similar-items', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/store-items/similar-items`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -151,7 +151,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
         try {
             setIsDeleting(true);
             
-            const response = await fetch(`http://127.0.0.1:8000/api/v1/products/${productId}`, {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}`, {
                 method: 'DELETE',
             });
 
@@ -202,7 +202,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
     };
 
     const getProxyImageUrl = (imageUrl: string): string => {
-        return `http://127.0.0.1:8000/api/v1/products/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        return `${process.env.NEXT_PUBLIC_API_URL}/products/image-proxy?url=${encodeURIComponent(imageUrl)}`;
     };
 
     const getBoundingBoxStyle = (bbox: number[] | undefined): React.CSSProperties | null => {

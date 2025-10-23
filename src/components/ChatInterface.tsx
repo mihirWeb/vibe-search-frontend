@@ -53,7 +53,7 @@ const ChatInterface: React.FC = () => {
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/v1/search/text', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/text`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -144,71 +144,86 @@ const ChatInterface: React.FC = () => {
         }
     };
 
-    const handleImageSearch = async () => {
-        if (!selectedImage) return;
+const handleImageSearch = async () => {
+    if (!selectedImage) return;
 
-        setShowImageQueryInput(false);
-        setIsLoading(true);
+    setShowImageQueryInput(false);
+    setIsLoading(true);
 
-        try {
-            const dataUrl = await convertFileToDataURL(selectedImage);
-            
-            const userMessage: Message = {
-                id: Date.now().toString(),
-                type: 'user',
-                content: imageQuery.trim() || 'Searching by image...',
-                imageUrl: imagePreview || undefined,
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, userMessage]);
+    try {
+        const dataUrl = await convertFileToDataURL(selectedImage);
+        
+        const userMessage: Message = {
+            id: Date.now().toString(),
+            type: 'user',
+            content: imageQuery.trim() || 'Searching by image...',
+            imageUrl: imagePreview || undefined,
+            timestamp: new Date()
+        };
+        setMessages(prev => [...prev, userMessage]);
 
-            const requestBody: any = {
-                image_url: dataUrl,
-                top_k: 10,
-                rerank: true
-            };
+        const requestBody: any = {
+            image_url: dataUrl,
+            top_k: 10,
+            rerank: true
+        };
 
-            if (imageQuery.trim()) {
-                requestBody.query = imageQuery.trim();
-            }
-
-            const response = await fetch('http://127.0.0.1:8000/api/v1/search/image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Image search failed: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-
-            const assistantMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                type: 'assistant',
-                content: `🔍 Found ${data.total_results || 0} visually similar products${imageQuery.trim() ? ` for "${imageQuery.trim()}"` : ''}`,
-                results: data.matches || [],
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, assistantMessage]);
-
-        } catch (error) {
-            console.error('Image search error:', error);
-            const errorMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                type: 'assistant',
-                content: '❌ Failed to process image. Please try again.',
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, errorMessage]);
-        } finally {
-            setIsLoading(false);
-            setSelectedImage(null);
-            setImagePreview(null);
-            setImageQuery('');
+        // Always include query if provided (even if empty string)
+        if (imageQuery.trim()) {
+            requestBody.query = imageQuery.trim();
         }
-    };
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/search/image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Image search failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('[Chat Interface] Image search response:', data);
+
+        const isCollectionQuery = data.is_collection_query || false;
+        
+        let assistantContent = '';
+        if (isCollectionQuery) {
+            const numLooks = data.total_looks || 0;
+            assistantContent = `✨ Here ${numLooks === 1 ? 'is' : 'are'} ${numLooks} complete outfit${numLooks === 1 ? '' : 's'} based on your image${imageQuery.trim() ? ` and "${imageQuery.trim()}"` : ''}`;
+        } else {
+            const numResults = data.total_results || 0;
+            assistantContent = `🔍 Found ${numResults} visually similar product${numResults === 1 ? '' : 's'}${imageQuery.trim() ? ` for "${imageQuery.trim()}"` : ''}`;
+        }
+
+        const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: assistantContent,
+            results: isCollectionQuery ? [] : (data.matches || []),
+            looks: isCollectionQuery ? (data.looks || []) : undefined,
+            isCollectionQuery: isCollectionQuery,
+            timestamp: new Date()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+
+    } catch (error) {
+        console.error('Image search error:', error);
+        const errorMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: '❌ Failed to process image. Please try again.',
+            timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+    } finally {
+        setIsLoading(false);
+        setSelectedImage(null);
+        setImagePreview(null);
+        setImageQuery('');
+    }
+};
 
     const handleCancelImageUpload = () => {
         setSelectedImage(null);
@@ -258,7 +273,7 @@ const ChatInterface: React.FC = () => {
                                     <img
                                         src={message.imageUrl}
                                         alt="Uploaded"
-                                        className="rounded-lg mb-2 max-h-64 object-cover"
+                                        className="rounded-lg mb-2 max-h-64 object-contain"
                                     />
                                 )}
                                 <p className="text-sm">{message.content}</p>
@@ -307,20 +322,23 @@ const ChatInterface: React.FC = () => {
                                 <img
                                     src={imagePreview}
                                     alt="Preview"
-                                    className="w-24 h-24 object-cover rounded-lg"
+                                    className="w-24 h-24 object-contain rounded-lg"
                                 />
                                 <div className="flex-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Add optional text description (optional):
+                                        Refine your search with text (optional):
                                     </label>
                                     <input
                                         type="text"
                                         value={imageQuery}
                                         onChange={(e) => setImageQuery(e.target.value)}
-                                        placeholder="e.g., blue running shoes, summer dress..."
+                                        placeholder="e.g., show me blue shoes, find me a complete outfit..."
                                         className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
                                         autoFocus
                                     />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        💡 Try: "show me similar sneakers", "complete outfit with this", "blue shoes"
+                                    </p>
                                     <div className="flex gap-2 mt-3">
                                         <button
                                             onClick={handleImageSearch}
@@ -455,7 +473,7 @@ const UnifiedCarousel: React.FC<{ items: any[], isCollection: boolean }> = ({ it
                         >
                             {item.is_existing ? (
                                 <div className="aspect-square bg-gray-200 flex flex-col items-center justify-center p-2">
-                                    <span className="text-xs font-medium text-gray-700 capitalize">{type}</span>
+                                    <span className="text-xs font-medium text-gray-700 capitalize">{type == "hat"? "accessory" : type}</span>
                                     <span className="text-xs text-gray-500 mt-1">(Your Item)</span>
                                 </div>
                             ) : (
@@ -468,7 +486,7 @@ const UnifiedCarousel: React.FC<{ items: any[], isCollection: boolean }> = ({ it
                                             <img
                                                 src={item.image_url}
                                                 alt={item.title || type}
-                                                className="w-full h-full object-cover"
+                                                className="w-full h-full object-contain"
                                                 onError={(e) => {
                                                     const target = e.target as HTMLImageElement;
                                                     target.style.display = 'none';
@@ -560,7 +578,7 @@ const UnifiedCarousel: React.FC<{ items: any[], isCollection: boolean }> = ({ it
                                 <img
                                     src={imageUrl}
                                     alt={result.title || 'Product'}
-                                    className="w-full h-32 object-cover"
+                                    className="w-full h-32 object-contain"
                                     onError={(e) => {
                                         const target = e.target as HTMLImageElement;
                                         target.style.display = 'none';

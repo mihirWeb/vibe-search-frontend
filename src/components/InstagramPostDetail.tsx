@@ -23,7 +23,7 @@ const InstagramPostDetail: React.FC<InstagramPostDetailProps> = ({ postId, onClo
             setLoading(true);
             setError(null);
 
-            const response = await fetch(`http://127.0.0.1:8000/api/v1/instagram/${postId}`);
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/instagram/${postId}`);
 
             if (!response.ok) {
                 throw new Error(`Failed to fetch post: ${response.statusText}`);
@@ -45,8 +45,8 @@ const InstagramPostDetail: React.FC<InstagramPostDetailProps> = ({ postId, onClo
     const handleExtractProducts = async () => {
         try {
             setIsExtracting(true);
-            
-            const response = await fetch('http://127.0.0.1:8000/api/v1/products/extract', {
+
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/extract`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -70,7 +70,7 @@ const InstagramPostDetail: React.FC<InstagramPostDetailProps> = ({ postId, onClo
     };
 
     const getProxyImageUrl = (imageUrl: string): string => {
-        return `http://127.0.0.1:8000/api/v1/products/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        return `${process.env.NEXT_PUBLIC_API_URL}/products/image-proxy?url=${encodeURIComponent(imageUrl)}`;
     };
 
     const formatDate = (dateString: string) => {

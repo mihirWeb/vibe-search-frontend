@@ -25,14 +25,14 @@ const PostsGallery: React.FC = () => {
 
     const getImageProxyUrl = (imageUrl: string | null | undefined): string | null => {
         if (!imageUrl) return null;
-        return `http://127.0.0.1:8000/api/v1/products/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        return `${process.env.NEXT_PUBLIC_API_URL}/products/image-proxy?url=${encodeURIComponent(imageUrl)}`;
     };
 
     const loadPosts = async (page: number) => {
         try {
             setLoading(true);
-            
-            const response = await fetch('http://127.0.0.1:8000/api/v1/products/list', {
+
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/list`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

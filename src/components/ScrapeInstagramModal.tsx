@@ -30,7 +30,7 @@ const ScrapeInstagramModal: React.FC<ScrapeInstagramModalProps> = ({ onClose, on
             setIsLoading(true);
             setError(null);
 
-            const response = await fetch('http://127.0.0.1:8000/api/v1/scraping/scrape?save_to_db=true', {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/scraping/scrape?save_to_db=true`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
