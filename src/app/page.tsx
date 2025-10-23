@@ -12,31 +12,85 @@ import { useSearch } from '@/hooks/useSearch';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'store' | 'vibe-search' | 'posts' | 'instagram'>('store');
-  const { results, isLoading, search, currentPage, totalPages, totalItems } = useSearch();
+  const { results, isLoading, search, setDirectResults, currentPage, totalPages, totalItems } = useSearch();
   const [showFilters, setShowFilters] = useState(false);
   const [currentFilters, setCurrentFilters] = useState<any>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [embeddingTestActive, setEmbeddingTestActive] = useState(false);
 
   // Load initial results for store tab
   useEffect(() => {
-    if (activeTab === 'store') {
+    if (activeTab === 'store' && !embeddingTestActive) {
       search('', 1, 20);
     }
-  }, [activeTab]);
+  }, [activeTab, embeddingTestActive]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
+    setEmbeddingTestActive(false);
     search(query, 1, 20, currentFilters);
+  };
+
+  const handleEmbeddingTestSearch = async (query: string) => {
+    setSearchQuery(query);
+    setEmbeddingTestActive(true);
+    
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/v1/search/embedding-test?query=${encodeURIComponent(query)}&top_k=20`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Embedding test search failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('[Embedding Test] Response:', data);
+
+      // Transform the results to match StoreItem interface
+      const transformedResults = data.matches.map((match: any) => ({
+        id: match.product_id,
+        sku_id: match.product_id,
+        title: match.title,
+        description: '',
+        category: match.category,
+        sub_category: match.sub_category,
+        brand_name: match.brand,
+        product_type: '',
+        gender: match.gender,
+        colorways: match.colorways,
+        lowest_price: match.price,
+        featured_image: match.image_url,
+        pdp_url: match.pdp_url,
+        wishlist_num: 0,
+        tags: '',
+        textual_embedding: null,
+        visual_embedding: null
+      }));
+
+      console.log('[Embedding Test] Transformed results:', transformedResults);
+      
+      // Update results using the new method
+      setDirectResults(transformedResults, data.total_results);
+      
+    } catch (error) {
+      console.error('[Embedding Test] Error:', error);
+      alert('Embedding test search failed. Please try again.');
+    }
   };
 
   const handleFilterChange = (filters: any) => {
     setCurrentFilters(filters);
-    search(searchQuery, 1, 20, filters);
+    if (!embeddingTestActive) {
+      search(searchQuery, 1, 20, filters);
+    }
   };
 
   const handlePageChange = (page: number) => {
-    search(searchQuery, page, 20, currentFilters);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!embeddingTestActive) {
+      search(searchQuery, page, 20, currentFilters);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   return (
@@ -55,8 +109,37 @@ export default function Home() {
             <p className="text-xl text-gray-600 mb-8">
               Search with intelligence, find with precision
             </p>
-            <SearchBar onSearch={handleSearch} />
+            <SearchBar 
+              onSearch={handleSearch} 
+              onEmbeddingTestSearch={handleEmbeddingTestSearch}
+            />
           </div>
+
+          {/* Embedding Test Mode Banner */}
+          {embeddingTestActive && (
+            <div className="mb-6 bg-purple-100 border-l-4 border-purple-600 p-4 rounded">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🧪</span>
+                  <div>
+                    <h3 className="font-semibold text-purple-900">Embedding Test Mode Active</h3>
+                    <p className="text-sm text-purple-700">
+                      Showing raw embedding search results without AI enhancement
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setEmbeddingTestActive(false);
+                    search(searchQuery, 1, 20, currentFilters);
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                >
+                  Exit Test Mode
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Filters Toggle Button (Mobile) */}
           <div className="lg:hidden mb-6">
@@ -73,9 +156,14 @@ export default function Home() {
 
           {/* Results Section */}
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* Filters Sidebar */}
-            <aside className={`lg:w-64 ${showFilters ? 'block' : 'hidden lg:block'}`}>
+            {/* Filters Sidebar - Disable in embedding test mode */}
+            <aside className={`lg:w-64 ${showFilters ? 'block' : 'hidden lg:block'} ${embeddingTestActive ? 'opacity-50 pointer-events-none' : ''}`}>
               <FilterPanel onFilterChange={handleFilterChange} />
+              {embeddingTestActive && (
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Filters disabled in test mode
+                </p>
+              )}
             </aside>
 
             {/* Search Results */}
@@ -89,12 +177,17 @@ export default function Home() {
                       for "<span className="font-semibold">{searchQuery}</span>"
                     </span>
                   )}
+                  {embeddingTestActive && (
+                    <span className="ml-2 text-purple-600 font-semibold">
+                      (Embedding Test)
+                    </span>
+                  )}
                 </p>
               </div>
               <SearchResults results={results} isLoading={isLoading} />
               
-              {/* Pagination */}
-              {totalPages > 1 && (
+              {/* Pagination - Disable in embedding test mode */}
+              {!embeddingTestActive && totalPages > 1 && (
                 <div className="mt-8 flex justify-center gap-2">
                   <button
                     onClick={() => handlePageChange(currentPage - 1)}

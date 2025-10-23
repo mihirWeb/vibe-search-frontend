@@ -9,12 +9,12 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
       </head>
       <body>
         <header>
-          <h1>Vibe Search</h1>
+          {/* <h1>Vibe Search</h1> */}
         </header>
         <main>{children}</main>
-        <footer>
+        {/* <footer>
           <p>&copy; {new Date().getFullYear()} Vibe Search. All rights reserved.</p>
-        </footer>
+        </footer> */}
       </body>
     </html>
   );

@@ -48,11 +48,30 @@ export const useSearch = () => {
         }
     }, []);
 
+    // Add method to directly set results (for embedding test)
+    const setDirectResults = useCallback((items: StoreItem[], total: number = 0) => {
+        setResults(items);
+        setTotalItems(total);
+        setCurrentPage(1);
+        setTotalPages(Math.ceil(total / 20));
+    }, []);
+
+    // Add method to clear results
+    const clearResults = useCallback(() => {
+        setResults([]);
+        setTotalItems(0);
+        setCurrentPage(1);
+        setTotalPages(0);
+        setError(null);
+    }, []);
+
     return {
         results,
         isLoading,
         error,
         search,
+        setDirectResults,
+        clearResults,
         currentPage,
         totalPages,
         totalItems,
