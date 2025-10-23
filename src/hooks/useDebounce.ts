@@ -1,6 +1,6 @@
 const { useEffect, useState } = require('react');
 
-function useDebounce(value, delay) {
+function useDebounce(value: any, delay: any) {
     const [debouncedValue, setDebouncedValue] = useState(value);
 
     useEffect(() => {
