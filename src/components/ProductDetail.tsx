@@ -732,7 +732,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ productId, onClose }) => 
                                                                 <img
                                                                     src={similarItem.item.featured_image}
                                                                     alt={similarItem.item.title}
-                                                                    className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                                                    className="w-16 h-16 object-contain rounded flex-shrink-0"
                                                                     onError={(e) => {
                                                                         const target = e.target as HTMLImageElement;
                                                                         target.style.display = 'none';
